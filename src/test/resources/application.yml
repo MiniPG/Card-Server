@@ -7,3 +7,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+card:
+  latency-ms: 0
+  reject-rate: 0.0

@@ -1,6 +1,9 @@
 spring:
   application:
     name: Card-Server
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: jdbc:mysql://localhost:3307/card?serverTimezone=Asia/Seoul
     username: root
@@ -15,3 +18,7 @@ spring:
 
 server:
   port: 8081
+
+card:
+  latency-ms: 500
+  reject-rate: 0.0
