@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: Card-Server
+  datasource:
+    url: jdbc:mysql://localhost:3307/card?serverTimezone=Asia/Seoul
+    username: root
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+
+server:
+  port: 8081
