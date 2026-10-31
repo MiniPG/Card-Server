@@ -34,3 +34,14 @@ management:
     distribution:
       percentiles-histogram:
         "[http.server.requests]": true
+
+logging:
+  file:
+    name: ${LOG_DIR:logs}/card-server.log
+  structured:
+    format:
+      file: logstash
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 7
