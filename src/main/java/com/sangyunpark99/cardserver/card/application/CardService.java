@@ -6,8 +6,10 @@ import com.sangyunpark99.cardserver.card.domain.CardTransactionType;
 import com.sangyunpark99.cardserver.card.infrastructure.CardTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -19,10 +21,28 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CardService {
     private final CardTransactionRepository repository;
     private final CardProperties properties;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
     public CardTransaction approve(String transactionKey, String paymentKey, long amount) {
         require(transactionKey, "transactionKey");
+        try {
+            return transactionTemplate.execute(status -> doApprove(transactionKey, paymentKey, amount));
+        } catch (DataIntegrityViolationException e) {
+            return replayAfterConflict(transactionKey, CardTransactionType.APPROVE, e);
+        }
+    }
+
+    public CardTransaction cancel(String transactionKey, String approveNo, long amount) {
+        require(transactionKey, "transactionKey");
+        require(approveNo, "approveNo");
+        try {
+            return transactionTemplate.execute(status -> doCancel(transactionKey, approveNo, amount));
+        } catch (DataIntegrityViolationException e) {
+            return replayAfterConflict(transactionKey, CardTransactionType.CANCEL, e);
+        }
+    }
+
+    private CardTransaction doApprove(String transactionKey, String paymentKey, long amount) {
         Optional<CardTransaction> existing = findSameType(transactionKey, CardTransactionType.APPROVE);
         if (existing.isPresent()) {
             logReplay(existing.get());
@@ -40,10 +60,7 @@ public class CardService {
         return logged(tx);
     }
 
-    @Transactional
-    public CardTransaction cancel(String transactionKey, String approveNo, long amount) {
-        require(transactionKey, "transactionKey");
-        require(approveNo, "approveNo");
+    private CardTransaction doCancel(String transactionKey, String approveNo, long amount) {
         Optional<CardTransaction> existing = findSameType(transactionKey, CardTransactionType.CANCEL);
         if (existing.isPresent()) {
             logReplay(existing.get());
@@ -76,6 +93,14 @@ public class CardService {
     public CardTransaction get(String transactionKey) {
         return repository.findByTransactionKey(transactionKey)
                 .orElseThrow(TransactionNotFoundException::new);
+    }
+
+    private CardTransaction replayAfterConflict(String transactionKey, CardTransactionType type,
+                                                DataIntegrityViolationException conflict) {
+        CardTransaction existing = transactionTemplate.execute(status -> findSameType(transactionKey, type))
+                .orElseThrow(() -> conflict);
+        logReplay(existing);
+        return existing;
     }
 
     private Optional<CardTransaction> findSameType(String transactionKey, CardTransactionType type) {
