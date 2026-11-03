@@ -65,6 +65,25 @@ class CardConcurrencyTest {
         assertThat(results.stream().map(r -> r.substring(4)).distinct()).hasSize(1);
     }
 
+    @Test
+    @DisplayName("같은 승인번호에 서로 다른 transactionKey로 취소가 동시에 와도 승인 금액보다 많이 취소되지 않는다")
+    void cancelSameApprovalWithDifferentKeysConcurrently() throws Exception {
+        String approveNo = approveNo(post("/v1/approvals", """
+                {"transactionKey":"%s","paymentKey":"pk_1","amount":10000}
+                """.formatted(newKey())));
+
+        List<String> results = runConcurrently(() -> post("/v1/cancels", """
+                {"transactionKey":"%s","approveNo":"%s","amount":3000}
+                """.formatted(newKey(), approveNo)));
+        long canceled = results.stream().filter(r -> r.contains("\"canceled\":true")).count();
+
+        System.out.printf("[다른 키 동시 취소] 요청 %d × 3000원, 취소 성공 %d, 취소 합 %d, 결과 %s%n",
+                REQUESTS, canceled, canceled * 3000, results);
+
+        assertThat(canceled * 3000).isLessThanOrEqualTo(10000);
+        assertThat(canceled).isEqualTo(3);
+    }
+
     private List<String> runConcurrently(Callable<String> request) throws Exception {
         List<String> results = Collections.synchronizedList(new ArrayList<>());
         ExecutorService executor = Executors.newFixedThreadPool(REQUESTS);

@@ -1,7 +1,6 @@
 package com.sangyunpark99.cardserver.card.application;
 
 import com.sangyunpark99.cardserver.card.domain.CardTransaction;
-import com.sangyunpark99.cardserver.card.domain.CardTransactionStatus;
 import com.sangyunpark99.cardserver.card.domain.CardTransactionType;
 import com.sangyunpark99.cardserver.card.infrastructure.CardTransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +60,8 @@ public class CardService {
     }
 
     private CardTransaction doCancel(String transactionKey, String approveNo, long amount) {
+        Optional<CardTransaction> original = repository.findApprovalForUpdate(approveNo);
+
         Optional<CardTransaction> existing = findSameType(transactionKey, CardTransactionType.CANCEL);
         if (existing.isPresent()) {
             logReplay(existing.get());
@@ -68,8 +69,6 @@ public class CardService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        Optional<CardTransaction> original = repository.findByApproveNoAndTypeAndStatus(
-                approveNo, CardTransactionType.APPROVE, CardTransactionStatus.APPROVED);
         if (original.isEmpty()) {
             return logged(repository.save(CardTransaction.rejected(transactionKey, null, CardTransactionType.CANCEL,
                     amount, approveNo, "NOT_FOUND_APPROVAL", "원거래를 찾을 수 없습니다.", now)));
