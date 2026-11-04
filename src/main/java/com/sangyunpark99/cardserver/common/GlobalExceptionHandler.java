@@ -1,6 +1,7 @@
 package com.sangyunpark99.cardserver.common;
 
 import com.sangyunpark99.cardserver.card.application.DuplicatedTransactionKeyException;
+import com.sangyunpark99.cardserver.card.application.ReversalNotAllowedException;
 import com.sangyunpark99.cardserver.card.application.TransactionNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> duplicated(DuplicatedTransactionKeyException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("DUPLICATED_TRANSACTION_KEY", e.getMessage()));
+    }
+
+    @ExceptionHandler(ReversalNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> reversalNotAllowed(ReversalNotAllowedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("REVERSAL_NOT_ALLOWED", e.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

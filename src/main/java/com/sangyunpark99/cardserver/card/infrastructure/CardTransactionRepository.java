@@ -14,6 +14,10 @@ public interface CardTransactionRepository extends JpaRepository<CardTransaction
     Optional<CardTransaction> findByTransactionKey(String transactionKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from CardTransaction t where t.transactionKey = :transactionKey")
+    Optional<CardTransaction> findByTransactionKeyForUpdate(@Param("transactionKey") String transactionKey);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select t from CardTransaction t
             where t.approveNo = :approveNo

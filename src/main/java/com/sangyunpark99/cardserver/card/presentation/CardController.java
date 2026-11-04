@@ -24,6 +24,12 @@ public class CardController {
         return CancelResponse.from(cardService.cancel(request.transactionKey(), request.approveNo(), request.amount()));
     }
 
+    @PostMapping("/approvals/{transactionKey}/reversal")
+    public TransactionResponse reverse(@PathVariable String transactionKey, @RequestBody ReversalRequest request) {
+        latencySimulator.await();
+        return TransactionResponse.from(cardService.reverse(transactionKey, request.paymentKey(), request.amount()));
+    }
+
     @GetMapping("/transactions/{transactionKey}")
     public TransactionResponse get(@PathVariable String transactionKey) {
         return TransactionResponse.from(cardService.get(transactionKey));
