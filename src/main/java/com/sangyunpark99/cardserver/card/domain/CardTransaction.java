@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -21,6 +23,8 @@ import java.time.LocalDateTime;
 public class CardTransaction {
     public static final String ISSUER_CODE = "11";
     public static final String MASKED_NUMBER = "1234-****-****-5678";
+    private static final String REVERSED_CODE = "REVERSED";
+    private static final String REVERSED_MESSAGE = "망취소된 승인입니다.";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,6 +47,7 @@ public class CardTransaction {
     private String approveNo;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "status", nullable = false, length = 10)
     private CardTransactionStatus status;
 
@@ -72,6 +77,11 @@ public class CardTransaction {
                 CardTransactionStatus.REJECTED, failureCode, failureMessage, now);
     }
 
+    public static CardTransaction reversed(String transactionKey, String paymentKey, long amount, LocalDateTime now) {
+        return of(transactionKey, paymentKey, CardTransactionType.APPROVE, amount, null,
+                CardTransactionStatus.REVERSED, REVERSED_CODE, REVERSED_MESSAGE, now);
+    }
+
     private static CardTransaction of(String transactionKey, String paymentKey, CardTransactionType type,
                                       long amount, String approveNo, CardTransactionStatus status,
                                       String failureCode, String failureMessage, LocalDateTime now) {
@@ -96,6 +106,15 @@ public class CardTransaction {
             throw new IllegalStateException("승인된 승인 거래에만 승인번호를 부여합니다.");
         }
         this.approveNo = String.format("%08d", id % 100_000_000);
+    }
+
+    public void reverse() {
+        if (status != CardTransactionStatus.APPROVED) {
+            return;
+        }
+        this.status = CardTransactionStatus.REVERSED;
+        this.failureCode = REVERSED_CODE;
+        this.failureMessage = REVERSED_MESSAGE;
     }
 
     public boolean isApproved() {

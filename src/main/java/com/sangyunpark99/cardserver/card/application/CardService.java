@@ -1,6 +1,7 @@
 package com.sangyunpark99.cardserver.card.application;
 
 import com.sangyunpark99.cardserver.card.domain.CardTransaction;
+import com.sangyunpark99.cardserver.card.domain.CardTransactionStatus;
 import com.sangyunpark99.cardserver.card.domain.CardTransactionType;
 import com.sangyunpark99.cardserver.card.infrastructure.CardTransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,30 @@ public class CardService {
         } catch (DataIntegrityViolationException e) {
             return replayAfterConflict(transactionKey, CardTransactionType.CANCEL, e);
         }
+    }
+
+    public CardTransaction reverse(String transactionKey, String paymentKey, long amount) {
+        require(transactionKey, "transactionKey");
+        try {
+            return transactionTemplate.execute(status -> doReverse(transactionKey, paymentKey, amount));
+        } catch (DataIntegrityViolationException e) {
+            return transactionTemplate.execute(status -> doReverse(transactionKey, paymentKey, amount));
+        }
+    }
+
+    private CardTransaction doReverse(String transactionKey, String paymentKey, long amount) {
+        Optional<CardTransaction> existing = repository.findByTransactionKeyForUpdate(transactionKey);
+        if (existing.isPresent()) {
+            if (existing.get().getType() != CardTransactionType.APPROVE) {
+                throw new DuplicatedTransactionKeyException();
+            }
+            if (existing.get().isApproved() && repository.sumCanceledAmount(existing.get().getApproveNo()) > 0) {
+                throw new ReversalNotAllowedException();
+            }
+            existing.get().reverse();
+            return logged(existing.get());
+        }
+        return logged(repository.save(CardTransaction.reversed(transactionKey, paymentKey, amount, LocalDateTime.now())));
     }
 
     private CardTransaction doApprove(String transactionKey, String paymentKey, long amount) {
@@ -117,7 +142,7 @@ public class CardService {
     }
 
     private CardTransaction logged(CardTransaction tx) {
-        log.atInfo().setMessage(tx.getType() == CardTransactionType.APPROVE ? "카드 승인 처리" : "카드 취소 처리")
+        log.atInfo().setMessage(logMessage(tx))
                 .addKeyValue("transactionKey", tx.getTransactionKey())
                 .addKeyValue("paymentKey", tx.getPaymentKey())
                 .addKeyValue("approveNo", tx.getApproveNo())
@@ -126,6 +151,13 @@ public class CardService {
                 .addKeyValue("failureCode", tx.getFailureCode())
                 .log();
         return tx;
+    }
+
+    private String logMessage(CardTransaction tx) {
+        if (tx.getStatus() == CardTransactionStatus.REVERSED) {
+            return "카드 망취소 처리";
+        }
+        return tx.getType() == CardTransactionType.APPROVE ? "카드 승인 처리" : "카드 취소 처리";
     }
 
     private void logReplay(CardTransaction tx) {
