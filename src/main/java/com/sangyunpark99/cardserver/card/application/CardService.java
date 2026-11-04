@@ -7,11 +7,13 @@ import com.sangyunpark99.cardserver.card.infrastructure.CardTransactionRepositor
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -19,6 +21,8 @@ import java.util.concurrent.ThreadLocalRandom;
 @Service
 @RequiredArgsConstructor
 public class CardService {
+    private static final int MAX_LIMIT = 1_000;
+
     private final CardTransactionRepository repository;
     private final CardProperties properties;
     private final TransactionTemplate transactionTemplate;
@@ -111,6 +115,38 @@ public class CardService {
         }
 
         return logged(repository.save(CardTransaction.canceled(transactionKey, approveNo, amount, now)));
+    }
+
+    @Transactional(readOnly = true)
+    public CardTransactionPage list(LocalDateTime from, LocalDateTime to, String startingAfter, int limit) {
+        if (from == null || to == null || !from.isBefore(to)) {
+            throw new IllegalArgumentException("조회 기간이 올바르지 않습니다.");
+        }
+        if (limit < 1 || limit > MAX_LIMIT) {
+            throw new IllegalArgumentException("limit은 1 이상 " + MAX_LIMIT + " 이하여야 합니다.");
+        }
+        PageRequest page = PageRequest.of(0, limit + 1);
+        List<CardTransaction> rows;
+        if (startingAfter == null) {
+            rows = repository.findFirstPage(from, to, page);
+        } else {
+            CardTransaction cursor = repository.findByTransactionKey(startingAfter)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 startingAfter입니다."));
+            rows = repository.findPageAfter(from, to, cursor.getCreatedAt(), cursor.getId(), page);
+        }
+        boolean hasMore = rows.size() > limit;
+        return new CardTransactionPage(hasMore ? rows.subList(0, limit) : rows, hasMore);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CardTransaction> lookup(List<String> transactionKeys) {
+        if (transactionKeys == null || transactionKeys.isEmpty()) {
+            return List.of();
+        }
+        if (transactionKeys.size() > MAX_LIMIT) {
+            throw new IllegalArgumentException("한 번에 " + MAX_LIMIT + "개까지 조회할 수 있습니다.");
+        }
+        return repository.findByTransactionKeyIn(transactionKeys);
     }
 
     @Transactional(readOnly = true)
