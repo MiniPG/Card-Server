@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
         uniqueConstraints = @UniqueConstraint(name = "uk_card_tx_transaction_key", columnNames = "transaction_key"),
         indexes = {
                 @Index(name = "idx_card_tx_approve_no", columnList = "approve_no"),
-                @Index(name = "idx_card_tx_payment_key", columnList = "payment_key")
+                @Index(name = "idx_card_tx_payment_key", columnList = "payment_key"),
+                @Index(name = "idx_card_tx_created_at", columnList = "created_at")
         }
 )
 @Getter

@@ -3,7 +3,10 @@ package com.sangyunpark99.cardserver.card.presentation;
 import com.sangyunpark99.cardserver.card.application.CardService;
 import com.sangyunpark99.cardserver.card.application.LatencySimulator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/v1")
@@ -28,6 +31,20 @@ public class CardController {
     public TransactionResponse reverse(@PathVariable String transactionKey, @RequestBody ReversalRequest request) {
         latencySimulator.await();
         return TransactionResponse.from(cardService.reverse(transactionKey, request.paymentKey(), request.amount()));
+    }
+
+    @GetMapping("/transactions")
+    public TransactionListResponse list(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) String startingAfter,
+            @RequestParam(defaultValue = "1000") int limit) {
+        return TransactionListResponse.from(cardService.list(from, to, startingAfter, limit));
+    }
+
+    @PostMapping("/transactions/lookup")
+    public TransactionLookupResponse lookup(@RequestBody TransactionLookupRequest request) {
+        return TransactionLookupResponse.from(cardService.lookup(request.transactionKeys()));
     }
 
     @GetMapping("/transactions/{transactionKey}")
