@@ -1,5 +1,6 @@
 package com.sangyunpark99.cardserver.common;
 
+import com.sangyunpark99.cardserver.card.application.CardUnavailableException;
 import com.sangyunpark99.cardserver.card.application.DuplicatedTransactionKeyException;
 import com.sangyunpark99.cardserver.card.application.ReversalNotAllowedException;
 import com.sangyunpark99.cardserver.card.application.TransactionNotFoundException;
@@ -28,6 +29,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> reversalNotAllowed(ReversalNotAllowedException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("REVERSAL_NOT_ALLOWED", e.getMessage()));
+    }
+
+    @ExceptionHandler(CardUnavailableException.class)
+    public ResponseEntity<ErrorResponse> unavailable(CardUnavailableException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorResponse("CARD_UNAVAILABLE", e.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
