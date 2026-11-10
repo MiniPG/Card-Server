@@ -146,6 +146,48 @@ class CardReversalTest {
     }
 
     @Test
+    @DisplayName("승인이 없는 서로 다른 키로 망취소가 동시에 몰려도 모두 REVERSED로 남는다")
+    void reverseUnknownKeysConcurrently() throws Exception {
+        int requests = 20;
+        ExecutorService executor = Executors.newFixedThreadPool(requests);
+        int failed = 0;
+        try {
+            for (int round = 0; round < ROUNDS; round++) {
+                String prefix = newKey() + "_";
+                CountDownLatch start = new CountDownLatch(1);
+                List<Future<Integer>> results = new ArrayList<>();
+                for (int i = 0; i < requests; i++) {
+                    String key = prefix + String.format("%04d", i);
+                    results.add(executor.submit(() -> {
+                        start.await();
+                        try {
+                            return reverse(key).andReturn().getResponse().getStatus();
+                        } catch (Exception e) {
+                            return 500;
+                        }
+                    }));
+                }
+                start.countDown();
+                int roundFailed = 0;
+                for (Future<Integer> result : results) {
+                    if (result.get(10, TimeUnit.SECONDS) != 200) {
+                        roundFailed++;
+                    }
+                }
+                long reversed = repository.findAll().stream()
+                        .filter(t -> t.getTransactionKey().startsWith(prefix))
+                        .count();
+                System.out.printf("[승인 없는 망취소 동시] 실패 %d/%d, 남은 기록 %d%n", roundFailed, requests, reversed);
+                failed += roundFailed;
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(failed).isZero();
+    }
+
+    @Test
     @DisplayName("부분 취소된 승인을 망취소하면 409이고 승인은 APPROVED로 남는다")
     void reversePartiallyCanceled() throws Exception {
         String key = newKey();
