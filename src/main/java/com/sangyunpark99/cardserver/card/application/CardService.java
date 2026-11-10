@@ -48,26 +48,33 @@ public class CardService {
 
     public CardTransaction reverse(String transactionKey, String paymentKey, long amount) {
         require(transactionKey, "transactionKey");
+        boolean exists = repository.existsByTransactionKey(transactionKey);
         try {
-            return transactionTemplate.execute(status -> doReverse(transactionKey, paymentKey, amount));
+            return transactionTemplate.execute(status -> exists
+                    ? reverseExisting(transactionKey, paymentKey, amount)
+                    : recordReversal(transactionKey, paymentKey, amount));
         } catch (DataIntegrityViolationException e) {
-            return transactionTemplate.execute(status -> doReverse(transactionKey, paymentKey, amount));
+            return transactionTemplate.execute(status -> reverseExisting(transactionKey, paymentKey, amount));
         }
     }
 
-    private CardTransaction doReverse(String transactionKey, String paymentKey, long amount) {
-        Optional<CardTransaction> existing = repository.findByTransactionKeyForUpdate(transactionKey);
-        if (existing.isPresent()) {
-            if (existing.get().getType() != CardTransactionType.APPROVE) {
-                throw new DuplicatedTransactionKeyException();
-            }
-            if (existing.get().isApproved() && repository.sumCanceledAmount(existing.get().getApproveNo()) > 0) {
-                throw new ReversalNotAllowedException();
-            }
-            existing.get().reverse();
-            return logged(existing.get());
-        }
+    private CardTransaction recordReversal(String transactionKey, String paymentKey, long amount) {
         return logged(repository.save(CardTransaction.reversed(transactionKey, paymentKey, amount, LocalDateTime.now())));
+    }
+
+    private CardTransaction reverseExisting(String transactionKey, String paymentKey, long amount) {
+        Optional<CardTransaction> existing = repository.findByTransactionKeyForUpdate(transactionKey);
+        if (existing.isEmpty()) {
+            return recordReversal(transactionKey, paymentKey, amount);
+        }
+        if (existing.get().getType() != CardTransactionType.APPROVE) {
+            throw new DuplicatedTransactionKeyException();
+        }
+        if (existing.get().isApproved() && repository.sumCanceledAmount(existing.get().getApproveNo()) > 0) {
+            throw new ReversalNotAllowedException();
+        }
+        existing.get().reverse();
+        return logged(existing.get());
     }
 
     private CardTransaction doApprove(String transactionKey, String paymentKey, long amount) {

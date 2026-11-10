@@ -17,6 +17,8 @@ public interface CardTransactionRepository extends JpaRepository<CardTransaction
 
     Optional<CardTransaction> findByTransactionKey(String transactionKey);
 
+    boolean existsByTransactionKey(String transactionKey);
+
     List<CardTransaction> findByTransactionKeyIn(Collection<String> transactionKeys);
 
     @Query("""
